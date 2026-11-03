@@ -198,7 +198,7 @@ chp('#qc',Object.entries(ST),()=>qt,k=>qt=k);chp('#qn',[[10,'10 câu'],[20,'20 c
 if(qi>=qs.length){const b=Math.max(best(qt),sc);best(qt,b);
 el.innerHTML=`<h3>Bạn đúng ${sc}/${qs.length} câu</h3><p>${sc==qs.length?'Tuyệt vời, nhà hoá học thực thụ! 🏆':sc>=qs.length*.7?'Khá lắm! Ôn thêm chút nữa là hoàn hảo.':'Đừng nản, xem lại bài học rồi thử bộ câu khác nhé.'}</p><p class="hint">Điểm cao nhất ở chủ đề ${ST[qt]}: ${b}</p><div class="row"><button class="btn" id="ag">Bộ câu khác 🔀</button><button class="btn alt" id="bk2">Đổi chủ đề</button></div>`;
 if(sc==qs.length)spawn('🎉',10);const pct=sc/qs.length*100;
-save('quiz-'+qt,sc,qs.length,!!P.get('quiz')&&pct>=PASS).then(m=>{if(qi>=qs.length&&qrun)el.insertAdjacentHTML('beforeend',`<p class="hint">${esc(m)}${P.get('quiz')&&pct<PASS?` Cần đạt ${PASS}% để hoàn thành bài được giao. Thử bộ câu khác nhé!`:''}</p>`)});$('#ag').onclick=begin;$('#bk2').onclick=()=>{qrun=false;qz()};return}
+save(curExam?'exam-'+curExam:'quiz-'+qt,sc,qs.length,(!!P.get('quiz')||!!P.get('exam'))&&pct>=PASS).then(m=>{if(qi>=qs.length&&qrun)el.insertAdjacentHTML('beforeend',`<p class="hint">${esc(m)}${(P.get('quiz')||P.get('exam'))&&pct<PASS?` Cần đạt ${PASS}% để hoàn thành bài được giao. Thử bộ câu khác nhé!`:''}</p>`)});$('#ag').onclick=begin;$('#bk2').onclick=()=>{qrun=false;qz()};return}
 const q=qs[qi];el.innerHTML=`<div class="bar"><i style="width:${qi/qs.length*100}%"></i></div><p class="hint">${ST[qt]} – câu ${qi+1}/${qs.length}</p><h3>${sub(q[1])}</h3>`+q[2].map((o,i)=>[o,i]).sort(()=>Math.random()-.5).map(([o,i])=>`<button class="opt" data-i="${i}">${sub(o)}</button>`).join('')+'<div id="fb"></div>';
 el.querySelectorAll('.opt').forEach(b=>b.onclick=()=>{const i=+b.dataset.i;
 el.querySelectorAll('.opt').forEach(x=>{x.disabled=true;if(+x.dataset.i===q[3])x.classList.add('ok')});
@@ -210,13 +210,27 @@ function begin(){const S=shuf(Q),l=[],seen=new Set();let tr=0;
 while(l.length<qn&&tr++<qn*8){const t=qt=='a'?(Math.random()<.5?'l':'c'):qt;
 const q=(t=='l'&&S.length)?S.pop():rnd(GC)();if(seen.has(q[1]))continue;seen.add(q[1]);l.push(q)}
 qs=l;qi=0;sc=0;qrun=true;qz()}
+/* ===== Đề thi thật (câu hỏi phụ huynh đã duyệt trong Việc nhà) ===== */
+const SUBJECT='Lý';let EXQ=null,EXA=null,curExam=null;ST.x='Đề thi thật';
+async function exLoad(){if(EXQ)return EXQ;if(!sb)return EXQ=[];try{const r=await sb.from('exam_questions').select('id,exam_id,lesson,q,options,answer,explain').eq('subject',SUBJECT).eq('status','approved');EXQ=r.data||[]}catch(e){EXQ=[]}return EXQ}
+const exQ=r=>{const o=[...r.options],c=o.splice(r.answer,1)[0];return ['x',r.q,[c,...o],0,r.explain||'']};
+function exMsg(t){qrun=false;$('#quiz').innerHTML=`<p>${t}</p><div class="row"><button class="btn alt" id="exb">← Quay lại</button></div>`;$('#exb').onclick=()=>{qrun=false;qz()}}
+async function examBegin(){curExam=null;$('#quiz').innerHTML='<p class="hint">Đang tải đề…</p>';await exLoad();if(!EXQ.length)return exMsg('Chưa có câu hỏi từ đề thi nào được duyệt cho môn này, hoặc bạn chưa đăng nhập.');qs=shuf(EXQ).slice(0,qn).map(exQ);qi=0;sc=0;qrun=true;qz()}
+function examRun(){qs=shuf(EXA).map(exQ);qi=0;sc=0;qrun=true;qz()}
+const _begin=begin;begin=function(){if(qt=='x')return curExam&&EXA?examRun():examBegin();curExam=null;return _begin()};
+const _assigned=assigned;
+assigned=async function(){const id=+P.get('exam');if(!id)return _assigned();const a=$('#asg');a.style.display='block';a.innerHTML='📌 <b>Bài được giao:</b> đang tải đề thi…';
+let L=[];try{const r=await sb.from('exam_questions').select('id,exam_id,lesson,q,options,answer,explain,position').eq('exam_id',id).eq('status','approved').order('position');L=r.data||[]}catch(e){}
+if(!L.length){a.innerHTML='📌 <b>Bài được giao:</b> chưa tải được đề (chưa có câu được duyệt hoặc chưa đăng nhập).';return}
+EXA=L;curExam=id;qt='x';a.innerHTML=`📌 <b>Bài được giao:</b> làm đề thi (${L.length} câu), cần đạt ${PASS}% để hoàn thành.`;document.querySelector('nav [data-t=t3]').click();examRun()};
+setTimeout(exLoad,900);
 function assigned(){const b=+P.get('bai'),k=P.get('kn'),q=P.get('quiz'),a=$('#asg'),go=t=>document.querySelector(`nav [data-t=${t}]`).click(),
 dn=id=>`<div class="row"><button class="btn" onclick="finish(this,'${id}')">✅ Mình đã học xong</button></div><p class="hint"></p>`,
 bn=t=>{a.style.display='block';a.innerHTML='📌 <b>Bài được giao:</b> '+t};
 if(b&&LS[b-1]){bn(`Bài ${b}. ${esc(LS[b-1][1])}`);const d=$('#les').querySelectorAll('details')[b-1];d.open=true;d.insertAdjacentHTML('beforeend',dn('bai-'+b));go('t0');setTimeout(()=>d.scrollIntoView(),60)}
 else if(k&&k.length==1&&'ABCDE'.includes(k)){const i='ABCDE'.indexOf(k),d=[...$('#sk').children].filter(x=>x.tagName=='DETAILS')[i];bn(`${'ABCDE'[i]}. ${SKL[i]}`);d.open=true;d.insertAdjacentHTML('beforeend',dn('kn-'+k));go('t2');setTimeout(()=>d.scrollIntoView(),60)}
 else if(q&&ST[q]){qt=q;qn=+P.get('n')||10;bn(`làm ${qn} câu ${ST[q]}, cần đạt ${PASS}% để hoàn thành.`);go('t3');begin()}}
-function topicName(t){t=t.replace('ly:','');const [k,v]=t.split('-');return k=='bai'?'Bài '+v+(LS[v-1]?': '+LS[v-1][1]:''):k=='kn'?v+'. '+(SKL['ABCDE'.indexOf(v)]||''):'Luyện '+(ST[v]||v)}
+function topicName(t){t=t.replace('ly:','');const [k,v]=t.split('-');return k=='exam'?'Đề thi #'+v:k=='bai'?'Bài '+v+(LS[v-1]?': '+LS[v-1][1]:''):k=='kn'?v+'. '+(SKL['ABCDE'.indexOf(v)]||''):'Luyện '+(ST[v]||v)}
 async function rs(){const el=$('#rs');
 if(!sb||!ME){el.innerHTML='<h3>Kết quả</h3><p class="hint">Đăng nhập (qua Việc nhà) để xem kết quả của cả nhà.</p>';return}
 el.innerHTML='<p class="hint">Đang tải…</p>';
